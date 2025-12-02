@@ -1,0 +1,14 @@
+[project]
+name = "csaf-vex"
+version = "0.1.0b1"
+description = "A library for generating, parsing and validating CSAF VEX files"
+readme = "README.md"
+authors = [
+    { name = "Jakub Frejlach", email = "jfrejlac@redhat.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.9.14,<0.10.0"]
+build-backend = "uv_build"
