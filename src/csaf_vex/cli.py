@@ -7,6 +7,8 @@ from typing import Any
 import click
 
 from csaf_vex.models import CSAFVEXDocument
+from csaf_vex.validation.base import ValidationResult
+from csaf_vex.validation.manager import PluginManager
 from csaf_vex.verification import VerificationReport, VerificationStatus, Verifier
 
 
@@ -162,6 +164,51 @@ def verify(ctx: click.Context, file: Path, test_set: str, test_id: tuple[str, ..
         raise click.ClickException(f"Invalid JSON in {file}: {e}") from None
     except Exception as e:
         raise click.ClickException(f"Error verifying file {file}: {e}") from None
+
+
+@click.option("--json", "as_json", is_flag=True, default=False, help="Output results as JSON")
+def validate(file: Path, as_json: bool):
+    """Validate a CSAF VEX JSON file using installed validator plugins."""
+    try:
+        with file.open() as f:
+            data = json.load(f)
+
+        document = CSAFVEXDocument.from_dict(data, verify=True)
+
+        results: list[ValidationResult] = PluginManager().run(document)
+
+        if as_json:
+            payload = [
+                {
+                    "validator_name": r.validator_name,
+                    "success": r.success,
+                    "duration_ms": r.duration_ms,
+                    "errors": [{"message": e.message} for e in r.errors],
+                }
+                for r in results
+            ]
+            click.echo(json.dumps(payload, indent=2))
+        else:
+            if not results:
+                click.echo("No validation plugins found.")
+            else:
+                failures = 0
+                for r in results:
+                    status = "PASS" if r.success else "FAIL"
+                    click.echo(f"[{status}] {r.validator_name}")
+                    if not r.success:
+                        failures += 1
+                        for e in r.errors:
+                            click.echo(f"  - {e.message} (plugin: {r.validator_name})")
+
+        # Exit code: 1 if any validator failed
+        if any(not r.success for r in results):
+            raise SystemExit(1)
+
+    except json.JSONDecodeError as e:
+        raise click.ClickException(f"Invalid JSON in {file}: {e}") from None
+    except Exception as e:
+        raise click.ClickException(f"Error validating file {file}: {e}") from None
 
 
 if __name__ == "__main__":

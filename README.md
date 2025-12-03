@@ -57,6 +57,14 @@ csaf-vex verify tests/test_files/sample-vex.json --test-set data
 csaf-vex verify tests/test_files/sample-vex.json -t 1.1 -t 2.5
 ```
 
+Validate with plugins:
+
+```bash
+csaf-vex validate tests/test_files/sample-vex.json
+```
+
+See docs/plugins.md for authoring and how the plugin system works.
+
 ### Python API
 
 ```python
