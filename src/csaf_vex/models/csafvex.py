@@ -12,6 +12,11 @@ class Document:
     title: str | None = attrs.field(default=None)
     category: str | None = attrs.field(default=None)
     tracking_id: str | None = attrs.field(default=None)
+    publisher_category: str | None = attrs.field(default=None)
+    publisher_name: str | None = attrs.field(default=None)
+    publisher_namespace: str | None = attrs.field(default=None)
+    tracking_status: str | None = attrs.field(default=None)
+    tracking_version: str | None = attrs.field(default=None)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Document":
@@ -20,10 +25,17 @@ class Document:
         Args:
             data: The 'document' section from parsed JSON
         """
+        tracking = data.get("tracking", {}) or {}
+        publisher = data.get("publisher", {}) or {}
         return cls(
             title=data.get("title"),
             category=data.get("category"),
-            tracking_id=data.get("tracking", {}).get("id"),
+            tracking_id=tracking.get("id"),
+            publisher_category=publisher.get("category"),
+            publisher_name=publisher.get("name"),
+            publisher_namespace=publisher.get("namespace"),
+            tracking_status=tracking.get("status"),
+            tracking_version=tracking.get("version"),
         )
 
 
