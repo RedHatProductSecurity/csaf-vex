@@ -166,14 +166,17 @@ def verify(ctx: click.Context, file: Path, test_set: str, test_id: tuple[str, ..
         raise click.ClickException(f"Error verifying file {file}: {e}") from None
 
 
+@main.command()
+@click.argument("file", type=click.Path(exists=True, path_type=Path))
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output results as JSON")
-def validate(file: Path, as_json: bool):
+@click.pass_context
+def validate(ctx: click.Context, file: Path, as_json: bool):
     """Validate a CSAF VEX JSON file using installed validator plugins."""
     try:
         with file.open() as f:
             data = json.load(f)
 
-        document = CSAFVEXDocument.from_dict(data, verify=True)
+        document = CSAFVEXDocument.from_dict(data)
 
         results: list[ValidationResult] = PluginManager().run(document)
 
