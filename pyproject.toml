@@ -13,6 +13,9 @@ requires-python = ">=3.10"
 dependencies = [
     "attrs>=25.4.0",
     "click>=8.3.1",
+    "cvss>=3.0",
+    "jsonschema>=4.0.0",
+    "packageurl-python>=0.15.0",
 ]
 keywords = [
     "csaf",
@@ -46,6 +49,16 @@ build-backend = "uv_build"
 dev = [
     "ruff>=0.14.7",
 ]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
 
 [tool.ruff]
 line-length = 100
