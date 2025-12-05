@@ -1,5 +1,6 @@
 """Base validation API for CSAF VEX plugins."""
 
+import logging
 from abc import ABC, abstractmethod
 from time import perf_counter
 
@@ -38,6 +39,11 @@ class ValidationPlugin(ABC):
 
     name: str = "unknown_plugin"
     description: str = "Validation plugin"
+
+    def __init__(self, log_level: int = logging.WARNING) -> None:
+        logger_name = f"csaf_vex.plugins.{self.name}"
+        self.logger = logging.getLogger(logger_name)
+        self.logger.setLevel(log_level)
 
     def validate(self, document: CSAFVEXDocument) -> ValidationResult:
         """Execute validation on the parsed CSAF VEX document."""
