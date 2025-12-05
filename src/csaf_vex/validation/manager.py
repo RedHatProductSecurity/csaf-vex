@@ -14,8 +14,9 @@ class PluginManager:
 
     PLUGIN_ENTRY_POINT_GROUP = "csaf_vex.validators"
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, log_level: int = logging.WARNING) -> None:
+        self.log_level = log_level
+        logger.setLevel(self.log_level)
 
     def _load(self) -> list[ValidationPlugin]:
         """Discover and instantiate all plugins."""
@@ -37,7 +38,7 @@ class PluginManager:
                         plugin_cls,
                     )
                     continue
-                plugin = plugin_cls()
+                plugin = plugin_cls(log_level=self.log_level)
                 discovered.append(plugin)
             except Exception as exc:
                 logger.error(
