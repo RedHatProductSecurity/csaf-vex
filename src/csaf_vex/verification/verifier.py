@@ -3,6 +3,8 @@ import logging
 from pathlib import Path
 from typing import Any, ClassVar
 
+from csaf_vex.models import CSAFVEX
+
 from .csaf_compliance import ALL_CSAF_COMPLIANCE_TESTS
 from .data_type_checks import ALL_DATA_TYPE_CHECKS, verify_soft_limit_file_size
 from .result import (
@@ -22,8 +24,8 @@ class Verifier:
     test sets against a CSAF VEX document.
 
     Attributes:
-        document: The parsed CSAF VEX document as a dictionary
-        raw_content: Optional raw content for file size validation
+        document: The document dict being verified
+        document_id: The document tracking ID
     """
 
     # Map test IDs to their functions
@@ -31,27 +33,35 @@ class Verifier:
 
     def __init__(
         self,
-        document: dict[str, Any] | str | Path,
+        document: CSAFVEX | dict[str, Any] | str | Path,
         raw_content: bytes | str | None = None,
         log_level: int = logging.WARNING,
     ) -> None:
         """Initialize the Verifier with a document.
 
         Args:
-            document: Either a parsed dictionary, a JSON string, or a Path to a JSON file
+            document: Either a CSAFVEX model, parsed dictionary, JSON string, or Path to a JSON file
             raw_content: Optional raw bytes/string content for file size validation
             log_level: Logging level for verifier internals (default: WARNING)
         """
+        # Parse to CSAFVEX model if needed and always keep the dict representation
         logger.setLevel(log_level)
-        if isinstance(document, Path):
+        if isinstance(document, CSAFVEX):
+            self._csafvex = document
+            self._document = document.raw_data if document.raw_data else {}
+            self._raw_content = raw_content
+        elif isinstance(document, Path):
             with open(document) as f:
                 self._raw_content = f.read()
                 self._document = json.loads(self._raw_content)
+                self._csafvex = CSAFVEX.from_dict(self._document)
         elif isinstance(document, str):
             self._raw_content = document
             self._document = json.loads(document)
+            self._csafvex = CSAFVEX.from_dict(self._document)
         else:
             self._document = document
+            self._csafvex = CSAFVEX.from_dict(document)
             self._raw_content = raw_content
 
         self._document_id = self._extract_document_id()

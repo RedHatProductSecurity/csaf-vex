@@ -6,7 +6,7 @@ from time import perf_counter
 
 import attrs
 
-from csaf_vex.models import CSAFVEXDocument
+from csaf_vex.models import CSAFVEX
 
 
 @attrs.define
@@ -45,7 +45,7 @@ class ValidationPlugin(ABC):
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(log_level)
 
-    def validate(self, document: CSAFVEXDocument) -> ValidationResult:
+    def validate(self, document: CSAFVEX) -> ValidationResult:
         """Execute validation on the parsed CSAF VEX document."""
 
         start = perf_counter()
@@ -72,7 +72,7 @@ class ValidationPlugin(ABC):
             )
 
     @abstractmethod
-    def _run_validation(self, document: CSAFVEXDocument) -> list[ValidationError]:
+    def _run_validation(self, document: CSAFVEX) -> list[ValidationError]:
         """Perform validator-specific checks on the provided document and return findings."""
         raise NotImplementedError
 
