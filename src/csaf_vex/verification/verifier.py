@@ -1,6 +1,5 @@
-"""Main Verifier class for orchestrating VEX verification tests."""
-
 import json
+import logging
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -12,6 +11,8 @@ from .result import (
     VerificationSeverity,
     VerificationStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Verifier:
@@ -32,13 +33,16 @@ class Verifier:
         self,
         document: dict[str, Any] | str | Path,
         raw_content: bytes | str | None = None,
+        log_level: int = logging.WARNING,
     ) -> None:
         """Initialize the Verifier with a document.
 
         Args:
             document: Either a parsed dictionary, a JSON string, or a Path to a JSON file
             raw_content: Optional raw bytes/string content for file size validation
+            log_level: Logging level for verifier internals (default: WARNING)
         """
+        logger.setLevel(log_level)
         if isinstance(document, Path):
             with open(document) as f:
                 self._raw_content = f.read()
@@ -55,6 +59,7 @@ class Verifier:
         # Build test registry if not already done
         if not Verifier._TEST_REGISTRY:
             Verifier._build_test_registry()
+        logger.debug("Initialized Verifier (document_id=%r)", self._document_id)
 
     def _extract_document_id(self) -> str | None:
         """Extract the document tracking ID."""
@@ -72,6 +77,7 @@ class Verifier:
         for i, test_func in enumerate(ALL_DATA_TYPE_CHECKS, start=1):
             test_id = f"2.{i}"
             cls._TEST_REGISTRY[test_id] = ("data_type_checks", test_func)
+        logger.debug("Built test registry with %d tests", len(cls._TEST_REGISTRY))
 
     @property
     def document(self) -> dict[str, Any]:
@@ -92,13 +98,22 @@ class Verifier:
         report = VerificationReport(document_id=self._document_id)
 
         # Run CSAF compliance tests
+        logger.debug("Running CSAF compliance tests")
         csaf_report = self.run_csaf_compliance()
         report.add_results(csaf_report.results)
 
         # Run data type checks
+        logger.debug("Running data type checks")
         data_report = self.run_data_type_checks()
         report.add_results(data_report.results)
 
+        logger.debug(
+            "Completed run_all: passed=%d failed=%d warn=%d skipped=%d",
+            report.passed_count,
+            report.failed_count,
+            report.warning_count,
+            report.skipped_count,
+        )
         return report
 
     def run_csaf_compliance(self) -> VerificationReport:
@@ -116,6 +131,7 @@ class Verifier:
             except Exception as e:
                 # Create an error result for unexpected exceptions
                 test_name = test_func.__doc__.split("\n")[0] if test_func.__doc__ else "Unknown"
+                logger.exception("CSAF compliance test raised exception: %s", test_name)
                 report.add_result(
                     VerificationResult(
                         test_id=getattr(test_func, "__name__", "unknown"),
@@ -149,6 +165,7 @@ class Verifier:
             except Exception as e:
                 # Create an error result for unexpected exceptions
                 test_name = test_func.__doc__.split("\n")[0] if test_func.__doc__ else "Unknown"
+                logger.exception("Data type check raised exception: %s", test_name)
                 report.add_result(
                     VerificationResult(
                         test_id=getattr(test_func, "__name__", "unknown"),
@@ -243,25 +260,27 @@ class Verifier:
         return result
 
     @classmethod
-    def from_file(cls, filepath: str | Path) -> "Verifier":
+    def from_file(cls, filepath: str | Path, *, log_level: int = logging.WARNING) -> "Verifier":
         """Create a Verifier from a JSON file path.
 
         Args:
             filepath: Path to a CSAF VEX JSON file
+            log_level: Logging level for verifier internals
 
         Returns:
             A Verifier instance for the file
         """
-        return cls(Path(filepath))
+        return cls(Path(filepath), log_level=log_level)
 
     @classmethod
-    def from_json(cls, json_string: str) -> "Verifier":
+    def from_json(cls, json_string: str, *, log_level: int = logging.WARNING) -> "Verifier":
         """Create a Verifier from a JSON string.
 
         Args:
             json_string: A JSON string containing a CSAF VEX document
+            log_level: Logging level for verifier internals
 
         Returns:
             A Verifier instance for the document
         """
-        return cls(json_string)
+        return cls(json_string, log_level=log_level)

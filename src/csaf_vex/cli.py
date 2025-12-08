@@ -137,7 +137,8 @@ def read(ctx: click.Context, file: Path, verify: bool, verbose: bool):
 def verify(ctx: click.Context, file: Path, test_set: str, test_id: tuple[str, ...], verbose: bool):
     """Verify a CSAF VEX file against the CSAF standard."""
     try:
-        verifier = Verifier.from_file(file)
+        log_level = logging.DEBUG if verbose else logging.INFO
+        verifier = Verifier.from_file(file, log_level=log_level)
 
         click.echo(f"Verifying: {file}")
         if verifier.document_id:
