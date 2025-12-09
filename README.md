@@ -145,7 +145,7 @@ for test_id, test_name in tests.items():
 | 1.14 | Unique VEX Justification | Products can only have one VEX justification |
 | 2.1 | JSON Schema Validation | Validates against CSAF 2.0 JSON schema |
 | 2.2 | PURL Format | Package URL format validation |
-| 2.3 | CPE Format | CPE 2.3 format validation |
+| 2.3 | CPE Format | CPE 2.2 and 2.3 format validation |
 | 2.4 | Date-Time Format | ISO 8601/RFC 3339 format validation |
 | 2.5 | CVE ID Format | CVE identifier format validation |
 | 2.6 | CWE ID Format | CWE identifier format validation |
