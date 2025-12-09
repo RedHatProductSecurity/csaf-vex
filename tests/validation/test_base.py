@@ -1,4 +1,4 @@
-from csaf_vex.models import CSAFVEXDocument
+from csaf_vex.models import CSAFVEX
 from csaf_vex.validation.base import ValidationError, ValidationPlugin
 
 
@@ -27,7 +27,7 @@ class CrashPlugin(ValidationPlugin):
 
 
 def test_validate_pass(minimal_vex):
-    doc = CSAFVEXDocument.from_dict(minimal_vex)
+    doc = CSAFVEX.from_dict(minimal_vex)
     result = PassPlugin().validate(doc)
     assert result.validator_name == "pass_plugin"
     assert result.success is True
@@ -36,7 +36,7 @@ def test_validate_pass(minimal_vex):
 
 
 def test_validate_fail(minimal_vex):
-    doc = CSAFVEXDocument.from_dict(minimal_vex)
+    doc = CSAFVEX.from_dict(minimal_vex)
     result = FailPlugin().validate(doc)
     assert result.validator_name == "fail_plugin"
     assert result.success is False
@@ -45,7 +45,7 @@ def test_validate_fail(minimal_vex):
 
 
 def test_validate_crash_converted_to_error(minimal_vex):
-    doc = CSAFVEXDocument.from_dict(minimal_vex)
+    doc = CSAFVEX.from_dict(minimal_vex)
     result = CrashPlugin().validate(doc)
     assert result.validator_name == "crash_plugin"
     assert result.success is False

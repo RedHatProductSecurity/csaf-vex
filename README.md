@@ -68,22 +68,38 @@ See docs/plugins.md for authoring and how the plugin system works.
 ### Python API
 
 ```python
-from csaf_vex.models import CSAFVEXDocument
+from csaf_vex.models import CSAFVEX
 
-# Load from dictionary
+# Load from file
+csafvex = CSAFVEX.from_file("path/to/document.json")
+
+# Or load from dictionary
+import json
 with open("vex-file.json") as f:
     data = json.load(f)
-
-csaf_vex = CSAFVEXDocument.from_dict(data)
+csafvex = CSAFVEX.from_dict(data)
 
 # Access document metadata
-print(csaf_vex.document.title)
-print(csaf_vex.document.tracking_id)
+print(csafvex.document.title)
+print(csafvex.document.publisher.name)
+print(csafvex.document.tracking.id)
 
-# Access vulnerabilities and product tree
-print(f"Vulnerabilities: {len(csaf_vex.vulnerabilities)}")
-print(f"Products: {len(csaf_vex.product_tree)}")
+# Access vulnerabilities
+for vuln in csafvex.vulnerabilities:
+    print(f"CVE: {vuln.cve}")
+    if vuln.cwe:
+        print(f"  CWE: {vuln.cwe.id}")
+
+# Access product tree
+if csafvex.product_tree:
+    for branch in csafvex.product_tree.branches:
+        print(f"Branch: {branch.name}")
+
+# Serialize back to dictionary
+data = csafvex.to_dict()
 ```
+
+For detailed API documentation including working with CVSS scores, PURLs, and more examples, see [docs/csafvex-usage.md](docs/csafvex-usage.md).
 
 ## Verification
 
@@ -210,7 +226,12 @@ uv run ruff format --check .
 ### Project Structure
 
 - `src/csaf_vex/cli.py` - CLI entrypoint
-- `src/csaf_vex/models/csafvex.py` - CSAFVEXDocument and Document classes
+- `src/csaf_vex/models/` - Internal representation models
+  - `csafvex.py` - Root CSAFVEX document model
+  - `document.py` - Document section models
+  - `product_tree.py` - Product tree models
+  - `vulnerability.py` - Vulnerability models
+  - `common.py` - Shared models (Note, Reference, etc.)
 - `src/csaf_vex/validation/` - Validation logic (semantic validation against external data)
 - `src/csaf_vex/verification/` - Verification logic (structural and format validation)
   - `result.py` - VerificationResult and VerificationReport classes
@@ -222,6 +243,7 @@ uv run ruff format --check .
   - `conftest.py` - Shared test fixtures
   - `test_csaf_compliance.py` - Tests for Test Set 1
   - `test_data_type_checks.py` - Tests for Test Set 2
+  - `test_models.py` - Tests for internal representation models
   - `test_files/` - Sample CSAF VEX files for testing
 
 ## License

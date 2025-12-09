@@ -3,7 +3,7 @@
 import logging
 from importlib.metadata import entry_points
 
-from csaf_vex.models import CSAFVEXDocument
+from csaf_vex.models import CSAFVEX
 from csaf_vex.validation.base import ValidationPlugin, ValidationResult
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class PluginManager:
 
         return discovered
 
-    def run(self, document: CSAFVEXDocument) -> list[ValidationResult]:
+    def run(self, document: CSAFVEX) -> list[ValidationResult]:
         """Run all loaded plugins against the provided document."""
         plugins = self._load()
 

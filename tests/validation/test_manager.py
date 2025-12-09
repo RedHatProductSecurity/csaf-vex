@@ -1,4 +1,4 @@
-from csaf_vex.models import CSAFVEXDocument
+from csaf_vex.models import CSAFVEX
 from csaf_vex.validation import manager as manager_mod
 from csaf_vex.validation.base import ValidationError, ValidationPlugin
 from csaf_vex.validation.manager import PluginManager
@@ -34,7 +34,7 @@ def test_manager_discovers_and_runs_in_sorted_order(monkeypatch, caplog, minimal
     eps = [MockEntryPoint("b", BPlugin), MockEntryPoint("a", APlugin)]
     monkeypatch.setattr(manager_mod, "entry_points", lambda group: eps)
 
-    doc = CSAFVEXDocument.from_dict(minimal_vex)
+    doc = CSAFVEX.from_dict(minimal_vex)
     results = PluginManager().run(doc)
 
     # Expect two results, ordered by entry point name: a, then b
@@ -52,7 +52,7 @@ def test_manager_logs_skip_for_non_plugin(monkeypatch, caplog, minimal_vex):
     monkeypatch.setattr(manager_mod, "entry_points", lambda group: eps)
 
     caplog.set_level("WARNING")
-    doc = CSAFVEXDocument.from_dict(minimal_vex)
+    doc = CSAFVEX.from_dict(minimal_vex)
     results = PluginManager().run(doc)
 
     assert results == []
@@ -64,7 +64,7 @@ def test_manager_logs_error_on_load_exception(monkeypatch, caplog, minimal_vex):
     monkeypatch.setattr(manager_mod, "entry_points", lambda group: eps)
 
     caplog.set_level("ERROR")
-    doc = CSAFVEXDocument.from_dict(minimal_vex)
+    doc = CSAFVEX.from_dict(minimal_vex)
     results = PluginManager().run(doc)
 
     assert results == []  # no valid plugins

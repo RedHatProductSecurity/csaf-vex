@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from csaf_vex.models import CSAFVEXDocument
+from csaf_vex.models import CSAFVEX
 from csaf_vex.validation.base import ValidationResult
 from csaf_vex.validation.manager import PluginManager
 from csaf_vex.verification import VerificationReport, VerificationStatus, Verifier
@@ -104,12 +104,12 @@ def read(ctx: click.Context, file: Path, verify: bool, verbose: bool):
         with file.open() as f:
             data = json.load(f)
 
-        csaf_vex = CSAFVEXDocument.from_dict(data)
+        csaf_vex = CSAFVEX.from_dict(data)
 
         click.echo(f"Successfully read CSAF VEX file: {file}")
         click.echo(f"Title: {csaf_vex.document.title}")
-        click.echo(f"Tracking ID: {csaf_vex.document.tracking_id}")
-        click.echo(f"Product tree entries: {len(csaf_vex.product_tree)}")
+        click.echo(f"Tracking ID: {csaf_vex.document.tracking.id}")
+        click.echo(f"Product tree entries: {len(csaf_vex.product_tree.branches)}")
         click.echo(f"Vulnerabilities: {len(csaf_vex.vulnerabilities)}")
 
         if verify:
@@ -201,7 +201,7 @@ def validate(ctx: click.Context, file: Path, as_json: bool, verbose: bool):
         with file.open() as f:
             data = json.load(f)
 
-        document = CSAFVEXDocument.from_dict(data)
+        document = CSAFVEX.from_dict(data)
 
         log_level = logging.DEBUG if verbose else logging.INFO
         results: list[ValidationResult] = PluginManager(log_level=log_level).run(document)

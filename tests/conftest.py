@@ -422,3 +422,10 @@ def document_with_contradicting_status() -> dict:
             }
         ],
     }
+
+
+@pytest.fixture
+def cve_2023_20593() -> dict:
+    """Load the cve-2023-20593.json fixture."""
+    with open(TEST_FILES_DIR / "cve-2023-20593.json") as f:
+        return json.load(f)
