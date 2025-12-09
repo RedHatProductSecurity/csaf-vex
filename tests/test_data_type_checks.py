@@ -142,6 +142,179 @@ class TestCPEFormat:
         result = verify_cpe_format(doc)
         assert result.status == VerificationStatus.SKIP
 
+    def test_various_valid_cpe_23_formats(self):
+        """Test various valid CPE 2.3 (Formatted String Binding) formats."""
+        valid_cpe_23 = [
+            "cpe:2.3:a:example:package:1.0.0:*:*:*:*:*:*:*",
+            "cpe:2.3:o:microsoft:windows:10:*:*:*:*:*:*:*",
+            "cpe:2.3:h:cisco:router:1.0:*:*:*:*:*:*:*",
+            "cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*",
+            "cpe:2.3:a:vendor:product:1.0:update1:*:*:*:*:*:*",
+            "cpe:2.3:a:redhat:openssl:1.1.1k:*:*:*:*:*:*:*",
+            "cpe:2.3:*:vendor:product:*:*:*:*:*:*:*:*",
+            "cpe:2.3:-:vendor:product:1.0:*:*:*:*:*:*:*",
+        ]
+        for cpe in valid_cpe_23:
+            doc = {
+                "product_tree": {
+                    "full_product_names": [
+                        {
+                            "name": "Test",
+                            "product_id": "TEST",
+                            "product_identification_helper": {"cpe": cpe},
+                        }
+                    ]
+                }
+            }
+            result = verify_cpe_format(doc)
+            assert result.passed, f"CPE 2.3 '{cpe}' should be valid"
+
+    def test_various_valid_cpe_22_formats(self):
+        """Test various valid CPE 2.2 (URI Binding) formats."""
+        valid_cpe_22 = [
+            "cpe:/a:apache:http_server:2.4.49",
+            "cpe:/o:microsoft:windows:10",
+            "cpe:/h:cisco:router",
+            "cpe:/a:vendor:product:1.0:update",
+            "cpe:/a:redhat:openssl:1.1.1k",
+            "cpe:/a:example:package:1.0.0",
+            "cpe:/o:linux:linux_kernel:5.10",
+            # Case-insensitive prefix per CSAF 2.0 schema
+            "CPE:/a:vendor:product:1.0",
+            "Cpe:/o:microsoft:windows:11",
+        ]
+        for cpe in valid_cpe_22:
+            doc = {
+                "product_tree": {
+                    "full_product_names": [
+                        {
+                            "name": "Test",
+                            "product_id": "TEST",
+                            "product_identification_helper": {"cpe": cpe},
+                        }
+                    ]
+                }
+            }
+            result = verify_cpe_format(doc)
+            assert result.passed, f"CPE 2.2 '{cpe}' should be valid"
+
+    def test_invalid_cpe_formats(self):
+        """Test that invalid CPE formats fail validation."""
+        invalid_cpes = [
+            "cpe:2.2:a:vendor:product:1.0:*:*:*:*:*:*:*",  # Wrong version prefix
+            "invalid-cpe-string",  # Not a CPE at all
+            "cpe:a:vendor:product",  # Missing version prefix
+            "cpe://a:vendor:product",  # Wrong separator (double slash)
+            "cpe:2.3:x:vendor:product:1.0:*:*:*:*:*:*:*",  # Invalid part type 'x'
+            "cpe:2.3:a:vendor",  # Too few components for CPE 2.3
+            "",  # Empty string
+        ]
+        for cpe in invalid_cpes:
+            doc = {
+                "product_tree": {
+                    "full_product_names": [
+                        {
+                            "name": "Test",
+                            "product_id": "TEST",
+                            "product_identification_helper": {"cpe": cpe},
+                        }
+                    ]
+                }
+            }
+            result = verify_cpe_format(doc)
+            assert result.failed, f"CPE '{cpe}' should be invalid"
+
+    def test_mixed_valid_cpe_formats(self):
+        """Test document with both CPE 2.2 and CPE 2.3 formats passes."""
+        doc = {
+            "product_tree": {
+                "full_product_names": [
+                    {
+                        "name": "Product with CPE 2.3",
+                        "product_id": "PROD-23",
+                        "product_identification_helper": {
+                            "cpe": "cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*:*"
+                        },
+                    },
+                    {
+                        "name": "Product with CPE 2.2",
+                        "product_id": "PROD-22",
+                        "product_identification_helper": {"cpe": "cpe:/a:vendor:product:2.0"},
+                    },
+                ]
+            }
+        }
+        result = verify_cpe_format(doc)
+        assert result.passed, "Document with both CPE 2.2 and 2.3 should pass"
+
+    def test_cpe_format_detection_in_summary(self):
+        """Test that CPE format detection is included in the verification summary."""
+        # Test with only CPE 2.3
+        doc_23 = {
+            "product_tree": {
+                "full_product_names": [
+                    {
+                        "name": "Product 1",
+                        "product_id": "PROD-1",
+                        "product_identification_helper": {
+                            "cpe": "cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*:*"
+                        },
+                    },
+                ]
+            }
+        }
+        result_23 = verify_cpe_format(doc_23)
+        assert result_23.passed
+        assert "CPE 2.3: 1" in result_23.message
+        assert result_23.details["cpe_23_count"] == 1
+        assert result_23.details["cpe_22_count"] == 0
+
+        # Test with only CPE 2.2
+        doc_22 = {
+            "product_tree": {
+                "full_product_names": [
+                    {
+                        "name": "Product 1",
+                        "product_id": "PROD-1",
+                        "product_identification_helper": {"cpe": "cpe:/a:vendor:product:1.0"},
+                    },
+                ]
+            }
+        }
+        result_22 = verify_cpe_format(doc_22)
+        assert result_22.passed
+        assert "CPE 2.2: 1" in result_22.message
+        assert result_22.details["cpe_23_count"] == 0
+        assert result_22.details["cpe_22_count"] == 1
+
+        # Test with mixed formats
+        doc_mixed = {
+            "product_tree": {
+                "full_product_names": [
+                    {
+                        "name": "Product 2.3",
+                        "product_id": "PROD-23",
+                        "product_identification_helper": {
+                            "cpe": "cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*:*"
+                        },
+                    },
+                    {
+                        "name": "Product 2.2",
+                        "product_id": "PROD-22",
+                        "product_identification_helper": {"cpe": "cpe:/a:vendor:product:2.0"},
+                    },
+                ]
+            }
+        }
+        result_mixed = verify_cpe_format(doc_mixed)
+        assert result_mixed.passed
+        assert "CPE 2.3: 1" in result_mixed.message
+        assert "CPE 2.2: 1" in result_mixed.message
+        assert result_mixed.details["cpe_23_count"] == 1
+        assert result_mixed.details["cpe_22_count"] == 1
+        assert len(result_mixed.details["cpe_23_values"]) == 1
+        assert len(result_mixed.details["cpe_22_values"]) == 1
+
 
 class TestDateTimeFormat:
     """Test 2.4: Date-Time Format Validation."""

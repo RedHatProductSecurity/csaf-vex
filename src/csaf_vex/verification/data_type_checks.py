@@ -18,10 +18,17 @@ from .result import VerificationResult, VerificationSeverity, VerificationStatus
 # Lazy-loaded schema cache
 _SCHEMA_CACHE: dict[str, Any] = {}
 
-# CPE 2.3 pattern (simplified but comprehensive)
-CPE_PATTERN = re.compile(
+# CPE 2.3 pattern (Formatted String Binding)
+CPE_23_PATTERN = re.compile(
     r"^cpe:2\.3:[aho\*\-]"
     r"(?::[A-Za-z0-9\._\-\*\?\\]*){10}"
+    r"$"
+)
+
+# CPE 2.2 pattern (URI Binding) - case-insensitive prefix per CSAF 2.0 schema
+CPE_22_PATTERN = re.compile(
+    r"^[cC][pP][eE]:/[AHOaho]?"
+    r"(?::[A-Za-z0-9\._\-~%]*){0,6}"
     r"$"
 )
 
@@ -257,7 +264,7 @@ def verify_cpe_format(document: dict[str, Any]) -> VerificationResult:
     """Test 2.3: CPE Format Validation.
 
     Any value provided for cpe (for products) MUST adhere to the specified
-    complex regex pattern for CPE Version 2.3.
+    complex regex pattern for CPE Version 2.3 or CPE Version 2.2 (URI binding).
     """
     cpes = _find_all_values(document, "cpe")
 
@@ -272,32 +279,60 @@ def verify_cpe_format(document: dict[str, Any]) -> VerificationResult:
         )
 
     invalid_cpes = []
+    cpe_23_list: list[str] = []
+    cpe_22_list: list[str] = []
+
     for cpe in cpes:
-        # Basic CPE 2.3 validation - must start with cpe:2.3: and match pattern
-        is_invalid = isinstance(cpe, str) and (
-            not cpe.startswith("cpe:2.3:") or not CPE_PATTERN.match(cpe)
-        )
-        if is_invalid:
+        if not isinstance(cpe, str):
             invalid_cpes.append(cpe)
+            continue
+
+        # Check CPE 2.3 format first (more common/preferred)
+        if CPE_23_PATTERN.match(cpe):
+            cpe_23_list.append(cpe)
+        elif CPE_22_PATTERN.match(cpe):
+            cpe_22_list.append(cpe)
+        else:
+            invalid_cpes.append(cpe)
+
+    # Build format summary
+    formats_detected = []
+    if cpe_23_list:
+        formats_detected.append(f"CPE 2.3: {len(cpe_23_list)}")
+    if cpe_22_list:
+        formats_detected.append(f"CPE 2.2: {len(cpe_22_list)}")
+    format_summary = ", ".join(formats_detected) if formats_detected else "none"
 
     if invalid_cpes:
         return VerificationResult(
             test_id="2.3",
             test_name="CPE Format Validation",
             status=VerificationStatus.FAIL,
-            message="Invalid CPE format detected",
+            message=f"Invalid CPE format detected (valid formats: {format_summary})",
             severity=VerificationSeverity.ERROR,
             source_ref="CSAF CPE Format",
-            details={"invalid_cpes": invalid_cpes},
+            details={
+                "invalid_cpes": invalid_cpes,
+                "cpe_23_count": len(cpe_23_list),
+                "cpe_22_count": len(cpe_22_list),
+                "cpe_23_values": cpe_23_list,
+                "cpe_22_values": cpe_22_list,
+            },
         )
 
     return VerificationResult(
         test_id="2.3",
         test_name="CPE Format Validation",
         status=VerificationStatus.PASS,
-        message=f"All {len(cpes)} CPE values are valid",
+        message=f"All {len(cpes)} CPE values are valid ({format_summary})",
         severity=VerificationSeverity.INFO,
         source_ref="CSAF CPE Format",
+        details={
+            "cpe_23_count": len(cpe_23_list),
+            "cpe_22_count": len(cpe_22_list),
+            "cpe_23_values": cpe_23_list,
+            "cpe_22_values": cpe_22_list,
+        },
     )
 
 

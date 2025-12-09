@@ -50,9 +50,31 @@ def _display_verification_results(
             click.secho(f"{indent}○ {result.test_id}: {result.test_name} (skipped)", dim=True)
 
 
+def _extract_cpe_format_summary(report: VerificationReport) -> str | None:
+    """Extract CPE format summary from verification results."""
+    for result in report.results:
+        if result.test_id == "2.3" and result.details:
+            cpe_23_count = result.details.get("cpe_23_count", 0)
+            cpe_22_count = result.details.get("cpe_22_count", 0)
+            if cpe_23_count > 0 or cpe_22_count > 0:
+                parts = []
+                if cpe_23_count > 0:
+                    parts.append("CPE 2.3")
+                if cpe_22_count > 0:
+                    parts.append("CPE 2.2")
+                return ", ".join(parts)
+    return None
+
+
 def _display_verification_summary(report: VerificationReport) -> None:
     """Display verification summary."""
     click.echo("")
+
+    # Display CPE format summary if available
+    cpe_summary = _extract_cpe_format_summary(report)
+    if cpe_summary:
+        click.echo(f"CPE formats detected: {cpe_summary}")
+
     click.echo(
         f"Summary: {report.passed_count} passed, {report.failed_count} failed, "
         f"{report.warning_count} warnings, {report.skipped_count} skipped"
