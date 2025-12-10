@@ -61,14 +61,13 @@ SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:-[a-zA-Z0-9\.\-]+)?(?:\+[a-zA-Z0-
 INT_VERSION_PATTERN = re.compile(r"^\d+$")
 
 # Version range indicators to detect in product_version names
-VERSION_RANGE_INDICATORS = frozenset(
+# Operators use substring matching (unlikely to appear in package names)
+VERSION_RANGE_OPERATORS = frozenset({"<", "<=", ">", ">=", "!=", "=="})
+
+# Word-based indicators require word-boundary matching to avoid false positives
+# (e.g., "tools" should not match "to", "priority" should not match "prior")
+VERSION_RANGE_WORDS = frozenset(
     {
-        "<",
-        "<=",
-        ">",
-        ">=",
-        "!=",
-        "==",
         "after",
         "before",
         "prior",
@@ -77,6 +76,12 @@ VERSION_RANGE_INDICATORS = frozenset(
         "through",
         "thru",
         "to",
+    }
+)
+
+# Phrase indicators also use word-boundary matching
+VERSION_RANGE_PHRASES = frozenset(
+    {
         "and later",
         "and earlier",
         "or later",
@@ -85,6 +90,12 @@ VERSION_RANGE_INDICATORS = frozenset(
         "or below",
     }
 )
+
+# Precompiled regex patterns for word-boundary matching (case-insensitive)
+_VERSION_RANGE_WORD_PATTERNS = {
+    word: re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
+    for word in VERSION_RANGE_WORDS | VERSION_RANGE_PHRASES
+}
 
 # Soft limits
 SOFT_LIMIT_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
@@ -560,11 +571,19 @@ def verify_version_range_prohibition(document: dict[str, Any]) -> VerificationRe
     invalid_versions = []
     for branch in version_branches:
         name = branch.get("name", "")
-        name_lower = name.lower()
-        for indicator in VERSION_RANGE_INDICATORS:
-            if indicator in name_lower:
-                invalid_versions.append({"name": name, "indicator": indicator})
+
+        # Check operators (substring match is fine - unlikely false positives)
+        for operator in VERSION_RANGE_OPERATORS:
+            if operator in name:
+                invalid_versions.append({"name": name, "indicator": operator})
                 break
+        else:
+            # Check word-based indicators with word-boundary matching
+            # to avoid false positives like "tools" matching "to"
+            for word, pattern in _VERSION_RANGE_WORD_PATTERNS.items():
+                if pattern.search(name):
+                    invalid_versions.append({"name": name, "indicator": word})
+                    break
 
     if invalid_versions:
         return VerificationResult(

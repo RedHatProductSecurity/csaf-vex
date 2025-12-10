@@ -493,6 +493,59 @@ class TestVersionRangeProhibition:
             result = verify_version_range_prohibition(doc)
             assert result.failed, f"Version '{version}' should be rejected"
 
+    def test_word_boundary_no_false_positives(self):
+        """Test that package names with range words as substrings are not rejected.
+
+        Package names like 'ipsec-tools' should NOT be flagged for containing 'to',
+        and 'priority' should NOT be flagged for containing 'prior'.
+        """
+        valid_package_names = [
+            "ipsec-tools-0:0.2.5-0.4.ia64",  # Contains 'to' in 'tools'
+            "ipsec-tools-debuginfo-0:0.2.5-0.4.x86_64",
+            "priority-queue-1.0.0",  # Contains 'prior' in 'priority'
+            "libthrough-2.3.1",  # Contains 'through'
+            "sincerity-lib-1.0",  # Contains 'since' in 'sincerity'
+            "aftermath-0.5.0",  # Contains 'after' in 'aftermath'
+            "beforehand-utils-2.0",  # Contains 'before' in 'beforehand'
+        ]
+        for version in valid_package_names:
+            doc = {
+                "product_tree": {
+                    "branches": [
+                        {
+                            "category": "product_version",
+                            "name": version,
+                            "product": {"name": "Test", "product_id": "TEST"},
+                        }
+                    ]
+                }
+            }
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"Version '{version}' should NOT be rejected (false positive)"
+
+    def test_word_boundary_detects_actual_ranges(self):
+        """Test that actual range words (not as substrings) are still detected."""
+        actual_range_versions = [
+            "1.0 to 2.0",  # 'to' as a word
+            "prior to 3.0",  # 'prior' and 'to' as words
+            "since 1.5",  # 'since' as a word
+            "until 2.0",  # 'until' as a word
+        ]
+        for version in actual_range_versions:
+            doc = {
+                "product_tree": {
+                    "branches": [
+                        {
+                            "category": "product_version",
+                            "name": version,
+                            "product": {"name": "Test", "product_id": "TEST"},
+                        }
+                    ]
+                }
+            }
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"Version '{version}' should be rejected as a range"
+
 
 class TestMixedVersioningProhibition:
     """Test 2.9: Mixed Versioning Prohibition."""
