@@ -8,8 +8,7 @@ from typing import Any
 import click
 
 from csaf_vex.models import CSAFVEX
-from csaf_vex.validation.base import ValidationResult
-from csaf_vex.validation.manager import PluginManager
+from csaf_vex.validation.validator import Validator
 from csaf_vex.verification import VerificationReport, VerificationStatus, Verifier
 
 
@@ -198,31 +197,36 @@ def verify(ctx: click.Context, file: Path, test_set: str, test_id: tuple[str, ..
 def validate(ctx: click.Context, file: Path, as_json: bool, verbose: bool):
     """Validate a CSAF VEX JSON file using installed validator plugins."""
     try:
-        with file.open() as f:
-            data = json.load(f)
-
-        document = CSAFVEX.from_dict(data)
-
         log_level = logging.DEBUG if verbose else logging.INFO
-        results: list[ValidationResult] = PluginManager(log_level=log_level).run(document)
+
+        validator = Validator.from_file(file, log_level=log_level)
+        report = validator.run_all()
 
         if as_json:
-            payload = [
-                {
-                    "validator_name": r.validator_name,
-                    "success": r.success,
-                    "duration_ms": r.duration_ms,
-                    "errors": [{"message": e.message} for e in r.errors],
-                }
-                for r in results
-            ]
-            click.echo(json.dumps(payload, indent=2))
+            output = {
+                "document_id": report.document_id,
+                "summary": {
+                    "total": report.total,
+                    "passed": report.passed_count,
+                    "failed": report.failed_count,
+                },
+                "results": [
+                    {
+                        "validator_name": r.validator_name,
+                        "success": r.success,
+                        "duration_ms": r.duration_ms,
+                        "errors": [{"message": e.message} for e in r.errors],
+                    }
+                    for r in report.results
+                ],
+            }
+            click.echo(json.dumps(output, indent=2))
         else:
-            if not results:
+            if not report.results:
                 click.echo("No validation plugins found.")
             else:
                 failures = 0
-                for r in results:
+                for r in report.results:
                     status = "PASS" if r.success else "FAIL"
                     click.echo(f"[{status}] {r.validator_name}")
                     if not r.success:
@@ -231,7 +235,7 @@ def validate(ctx: click.Context, file: Path, as_json: bool, verbose: bool):
                             click.echo(f"  - {e.message} (plugin: {r.validator_name})")
 
         # Exit code: 1 if any validator failed
-        if any(not r.success for r in results):
+        if report.failed_count > 0:
             raise SystemExit(1)
 
     except json.JSONDecodeError as e:

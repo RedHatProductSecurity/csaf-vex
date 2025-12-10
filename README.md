@@ -99,6 +99,36 @@ if csafvex.product_tree:
 data = csafvex.to_dict()
 ```
 
+### Validation (Plugins) - Python API
+
+```python
+import logging
+from csaf_vex.models import CSAFVEX
+from csaf_vex.validation.validator import Validator
+
+csafvex = CSAFVEX.from_file("path/to/document.json")
+
+# Create validator; default log level is WARNING
+validator = Validator(csafvex, log_level=logging.INFO)
+
+# Run all installed validation plugins
+report = validator.run_all()
+print(f"Plugins: total={report.total}, passed={report.passed_count}, failed={report.failed_count}")
+for r in report.results:
+    if not r.success:
+        print(f"[{r.validator_name}]")
+        for e in r.errors:
+            print(f"  - {e.message}")
+
+# Run a subset of plugins by name
+subset = validator.run_plugins(["<PLUGIN-NAME>"])
+print(f"Subset failed: {subset.failed_count}")
+
+# List available plugin names
+from csaf_vex.validation.validator import Validator
+print(Validator.get_available_plugins())
+```
+
 For detailed API documentation including working with CVSS scores, PURLs, and more examples, see [docs/csafvex-usage.md](docs/csafvex-usage.md).
 
 ## Verification
