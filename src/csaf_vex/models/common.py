@@ -36,7 +36,11 @@ def serialize_value(inst: type, field: attrs.Attribute, value: Any) -> Any:
     if attrs.has(type(value)):
         return value.to_dict()
 
-    # Return as-is for other types (str, int, dict, etc.)
+    # Handle plain dicts - sort keys recursively
+    if isinstance(value, dict):
+        return dict(sorted((key, serialize_value(inst, field, val)) for key, val in value.items()))
+
+    # Return as-is for other types (str, int, etc.)
     return value
 
 
@@ -45,12 +49,16 @@ class SerializableModel:
     """Base class for CSAF VEX models with serialization support."""
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to a dictionary, excluding None values and empty lists."""
-        return attrs.asdict(
+        """Convert to a dictionary, excluding None values and empty lists.
+
+        Keys are sorted alphabetically for consistent output.
+        """
+        result = attrs.asdict(
             self,
             filter=lambda attr, value: value is not None and value != [],
             value_serializer=serialize_value,
         )
+        return dict(sorted(result.items()))
 
 
 @attrs.define
