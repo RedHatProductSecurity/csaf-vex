@@ -494,23 +494,30 @@ class TestVersionRangeProhibition:
             assert result.failed, f"Version '{version}' should be rejected"
 
     def test_word_boundary_no_false_positives(self):
-        """Test that package names with range words as substrings are not rejected.
+        """Test that package names with range words are not rejected.
 
-        Package names like 'ipsec-tools' should NOT be flagged for containing 'to',
-        and 'priority' should NOT be flagged for containing 'prior'.
+        Package names like 'ipsec-tools', 'nodejs-through', etc. should NOT be
+        flagged even when they contain words that could indicate version ranges.
         """
         valid_package_names = [
+            # Words as substrings
             "ipsec-tools-0:0.2.5-0.4.ia64",  # Contains 'to' in 'tools'
             "ipsec-tools-debuginfo-0:0.2.5-0.4.x86_64",
             "priority-queue-1.0.0",  # Contains 'prior' in 'priority'
-            "libthrough-2.3.1",  # Contains 'through'
             "sincerity-lib-1.0",  # Contains 'since' in 'sincerity'
-            "aftermath-0.5.0",  # Contains 'after' in 'aftermath'
-            "beforehand-utils-2.0",  # Contains 'before' in 'beforehand'
-            "glibc-langpack-to",  # 'to' is a language code (Tonga), not a range
+            "tomcat-9.0.50",  # 'to' in 'tomcat'
+            # Words as standalone parts of package names (not version ranges)
+            "nodejs-through-0:2.3.4-4.el7aos",  # npm package 'through'
+            "nodejs-after-0:0.8.2-1.el7aos",  # npm package 'after'
+            "glibc-langpack-to",  # 'to' is a language code (Tonga)
             "glibc-langpack-th",  # Similar language code suffix
             "goto-statement-1.0",  # 'to' in 'goto'
-            "tomcat-9.0.50",  # 'to' in 'tomcat'
+            "aftermath-0.5.0",  # 'after' in 'aftermath'
+            "beforehand-utils-2.0",  # 'before' in 'beforehand'
+            "libthrough-2.3.1",  # 'through' in package name
+            "pass-through-proxy-1.0",  # 'through' in package name
+            "since-when-lib-0.1",  # 'since' in package name
+            "until-done-0.2.3",  # 'until' in package name
         ]
         for version in valid_package_names:
             doc = {
@@ -528,16 +535,25 @@ class TestVersionRangeProhibition:
             assert result.passed, f"Version '{version}' should NOT be rejected (false positive)"
 
     def test_word_boundary_detects_actual_ranges(self):
-        """Test that actual range words (not as substrings) are still detected."""
+        """Test that actual version ranges are still detected."""
         actual_range_versions = [
+            # Versions with 'to' in range context
             "1.0 to 2.0",  # 'to' between versions
             "v1 to v5",  # 'to' between version identifiers
             "prior to 3.0",  # 'prior to' phrase
             "up to 3.0",  # 'up to' phrase
-            "since 1.5",  # 'since' as a word
-            "until 2.0",  # 'until' as a word
-            "before 3.0",  # 'before' as a word
-            "after 1.0",  # 'after' as a word
+            # Versions with range words followed by version numbers
+            "since 1.5",  # 'since' followed by version
+            "until 2.0",  # 'until' followed by version
+            "before 3.0",  # 'before' followed by version
+            "after 1.0",  # 'after' followed by version
+            # Version ranges with 'through'/'thru'
+            "1.0 through 2.0",  # 'through' between versions
+            "v1.0 thru v2.0",  # 'thru' between versions
+            # Multi-word phrases
+            "1.0 and later",
+            "2.0 or earlier",
+            "3.0 or above",
         ]
         for version in actual_range_versions:
             doc = {
@@ -553,6 +569,454 @@ class TestVersionRangeProhibition:
             }
             result = verify_version_range_prohibition(doc)
             assert result.failed, f"Version '{version}' should be rejected as a range"
+
+    # === Operator detection tests ===
+
+    def test_operator_less_than(self):
+        """Test detection of less-than operator."""
+        invalid_versions = ["< 1.0", "<1.0", "version < 2.0", "pkg<3.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains '<')"
+            assert result.details["invalid_versions"][0]["indicator"] == "<"
+
+    def test_operator_greater_than(self):
+        """Test detection of greater-than operator."""
+        invalid_versions = ["> 1.0", ">1.0", "version > 2.0", "pkg>3.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains '>')"
+            assert result.details["invalid_versions"][0]["indicator"] == ">"
+
+    def test_operator_less_than_or_equal(self):
+        """Test detection of less-than-or-equal operator."""
+        invalid_versions = ["<= 1.0", "<=1.0", "version <= 2.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains '<=')"
+            assert result.details["invalid_versions"][0]["indicator"] == "<="
+
+    def test_operator_greater_than_or_equal(self):
+        """Test detection of greater-than-or-equal operator."""
+        invalid_versions = [">= 1.0", ">=1.0", "version >= 2.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains '>=')"
+            assert result.details["invalid_versions"][0]["indicator"] == ">="
+
+    def test_operator_not_equal(self):
+        """Test detection of not-equal operator."""
+        invalid_versions = ["!= 1.0", "!=1.0", "version != 2.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains '!=')"
+            assert result.details["invalid_versions"][0]["indicator"] == "!="
+
+    def test_operator_double_equal(self):
+        """Test detection of double-equal operator."""
+        invalid_versions = ["== 1.0", "==1.0", "version == 2.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains '==')"
+            assert result.details["invalid_versions"][0]["indicator"] == "=="
+
+    # === Multi-word phrase detection tests ===
+
+    def test_phrase_and_later(self):
+        """Test detection of 'and later' phrase."""
+        invalid_versions = ["1.0 and later", "version 2.0 and later", "v3 and later"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'and later')"
+            assert result.details["invalid_versions"][0]["indicator"] == "and later"
+
+    def test_phrase_and_earlier(self):
+        """Test detection of 'and earlier' phrase."""
+        invalid_versions = ["2.0 and earlier", "version 3.0 and earlier"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'and earlier')"
+            assert result.details["invalid_versions"][0]["indicator"] == "and earlier"
+
+    def test_phrase_or_later(self):
+        """Test detection of 'or later' phrase."""
+        invalid_versions = ["1.0 or later", "version 2.0 or later"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'or later')"
+            assert result.details["invalid_versions"][0]["indicator"] == "or later"
+
+    def test_phrase_or_earlier(self):
+        """Test detection of 'or earlier' phrase."""
+        invalid_versions = ["2.0 or earlier", "version 3.0 or earlier"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'or earlier')"
+            assert result.details["invalid_versions"][0]["indicator"] == "or earlier"
+
+    def test_phrase_or_above(self):
+        """Test detection of 'or above' phrase."""
+        invalid_versions = ["1.0 or above", "version 2.0 or above"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'or above')"
+            assert result.details["invalid_versions"][0]["indicator"] == "or above"
+
+    def test_phrase_or_below(self):
+        """Test detection of 'or below' phrase."""
+        invalid_versions = ["2.0 or below", "version 3.0 or below"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'or below')"
+            assert result.details["invalid_versions"][0]["indicator"] == "or below"
+
+    # === Context-aware single word detection tests ===
+
+    def test_word_to_in_version_range_context(self):
+        """Test 'to' is detected when between version-like strings."""
+        invalid_versions = [
+            "1.0 to 2.0",
+            "v1 to v2",
+            "1.0.0 to 2.0.0",
+            "version1 to version2",
+            "0 to 10",
+        ]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'to' range)"
+            assert result.details["invalid_versions"][0]["indicator"] == "to"
+
+    def test_word_to_not_in_range_context(self):
+        """Test 'to' is NOT detected when not in version range context."""
+        valid_versions = [
+            "glibc-langpack-to",  # Language code
+            "convert-to-json-1.0",  # Part of package name
+            "go-to-sleep-0.1",  # Part of package name
+            "how-to-guide-2.0",  # Part of package name
+            "point-to-point-1.5",  # Part of package name
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"'{version}' should NOT be rejected"
+
+    def test_word_prior_to_phrase(self):
+        """Test 'prior to' phrase is detected."""
+        invalid_versions = ["prior to 1.0", "prior to 2.0.0", "prior to v3"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'prior to')"
+            assert result.details["invalid_versions"][0]["indicator"] == "prior"
+
+    def test_word_prior_not_in_phrase(self):
+        """Test 'prior' alone in package name is NOT detected."""
+        valid_versions = [
+            "priority-queue-1.0",
+            "a-priori-lib-2.0",
+            "prior-art-checker-0.5",
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"'{version}' should NOT be rejected"
+
+    def test_word_up_to_phrase(self):
+        """Test 'up to' phrase is detected."""
+        invalid_versions = ["up to 1.0", "up to 2.0.0", "up to v3"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'up to')"
+            assert result.details["invalid_versions"][0]["indicator"] == "to"
+
+    def test_word_through_in_version_range_context(self):
+        """Test 'through' is detected when between version-like strings."""
+        invalid_versions = [
+            "1.0 through 2.0",
+            "v1 through v5",
+            "1.0.0 through 2.0.0",
+            "version1 through version3",
+        ]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'through' range)"
+            assert result.details["invalid_versions"][0]["indicator"] == "through"
+
+    def test_word_through_not_in_range_context(self):
+        """Test 'through' is NOT detected when not in version range context."""
+        valid_versions = [
+            "nodejs-through-0:2.3.4-4.el7aos",  # npm package
+            "pass-through-1.0",  # Part of package name
+            "walk-through-lib-2.0",  # Part of package name
+            "see-through-0.5",  # Part of package name
+            "breakthrough-3.0",  # Part of word
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"'{version}' should NOT be rejected"
+
+    def test_word_thru_in_version_range_context(self):
+        """Test 'thru' is detected when between version-like strings."""
+        invalid_versions = ["1.0 thru 2.0", "v1 thru v5", "1.0.0 thru 2.0.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'thru' range)"
+            assert result.details["invalid_versions"][0]["indicator"] == "thru"
+
+    def test_word_after_with_version(self):
+        """Test 'after' is detected when followed by version-like string."""
+        invalid_versions = ["after 1.0", "after v2", "after 1.0.0", "after version3"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'after' range)"
+            assert result.details["invalid_versions"][0]["indicator"] == "after"
+
+    def test_word_after_not_with_version(self):
+        """Test 'after' is NOT detected when not followed by version."""
+        valid_versions = [
+            "nodejs-after-0:0.8.2-1.el7aos",  # npm package
+            "aftermath-0.5.0",  # Part of word
+            "afterthought-lib-1.0",  # Part of word
+            "day-after-tomorrow-2.0",  # Part of package name
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"'{version}' should NOT be rejected"
+
+    def test_word_before_with_version(self):
+        """Test 'before' is detected when followed by version-like string."""
+        invalid_versions = ["before 1.0", "before v2", "before 1.0.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'before' range)"
+            assert result.details["invalid_versions"][0]["indicator"] == "before"
+
+    def test_word_before_not_with_version(self):
+        """Test 'before' is NOT detected when not followed by version."""
+        valid_versions = [
+            "beforehand-utils-2.0",  # Part of word
+            "the-day-before-1.0",  # Part of package name
+            "before-sunrise-lib-0.5",  # Part of package name
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"'{version}' should NOT be rejected"
+
+    def test_word_since_with_version(self):
+        """Test 'since' is detected when followed by version-like string."""
+        invalid_versions = ["since 1.0", "since v2", "since 1.0.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'since' range)"
+            assert result.details["invalid_versions"][0]["indicator"] == "since"
+
+    def test_word_since_not_with_version(self):
+        """Test 'since' is NOT detected when not followed by version."""
+        valid_versions = [
+            "sincerity-lib-1.0",  # Part of word
+            "since-when-0.5",  # Part of package name (no digit after)
+            "ever-since-lib-2.0",  # Part of package name
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"'{version}' should NOT be rejected"
+
+    def test_word_until_with_version(self):
+        """Test 'until' is detected when followed by version-like string."""
+        invalid_versions = ["until 1.0", "until v2", "until 1.0.0"]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (contains 'until' range)"
+            assert result.details["invalid_versions"][0]["indicator"] == "until"
+
+    def test_word_until_not_with_version(self):
+        """Test 'until' is NOT detected when not followed by version."""
+        valid_versions = [
+            "until-done-0.2.3",  # Part of package name (no digit right after 'until')
+            "wait-until-lib-1.0",  # Part of package name
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"'{version}' should NOT be rejected"
+
+    # === Real-world Red Hat VEX package names ===
+
+    def test_redhat_vex_ipsec_tools(self):
+        """Test Red Hat VEX package names from cve-2004-0164.json."""
+        valid_versions = [
+            "ipsec-tools-0:0.2.5-0.4.ia64",
+            "ipsec-tools-debuginfo-0:0.2.5-0.4.ia64",
+            "ipsec-tools-0:0.2.5-0.4.ppc",
+            "ipsec-tools-0:0.2.5-0.4.s390",
+            "ipsec-tools-0:0.2.5-0.4.s390x",
+            "ipsec-tools-0:0.2.5-0.4.src",
+            "ipsec-tools-0:0.2.5-0.4.x86_64",
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"Red Hat package '{version}' should NOT be rejected"
+
+    def test_redhat_vex_glibc_langpack(self):
+        """Test Red Hat VEX package names from cve-2005-3590.json."""
+        valid_versions = [
+            "glibc-langpack-to",
+            "glibc-langpack-th",
+            "glibc-langpack-tr",
+            "glibc-common",
+            "glibc-headers",
+            "glibc-static",
+            "glibc-utils",
+            "glibc-devel",
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"Red Hat package '{version}' should NOT be rejected"
+
+    def test_redhat_vex_nodejs_packages(self):
+        """Test Red Hat VEX package names from cve-2015-1807.json."""
+        valid_versions = [
+            "nodejs-through-0:2.3.4-4.el7aos",
+            "nodejs-after-0:0.8.2-1.el7aos",
+            "nodejs-timed-out-0:2.0.0-3.el7aos",
+            "nodejs-touch-0:1.0.0-2.el7aos",
+            "nodejs-undefsafe-0:0.0.3-1.el7aos",
+            "nodejs-uuid-0:2.0.1-1.el7aos",
+            "jenkins-0:1.609.1-1.el6op.noarch",
+        ]
+        for version in valid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.passed, f"Red Hat package '{version}' should NOT be rejected"
+
+    # === Edge cases ===
+
+    def test_case_insensitive_detection(self):
+        """Test that detection is case-insensitive."""
+        invalid_versions = [
+            "1.0 TO 2.0",  # Uppercase 'TO'
+            "BEFORE 1.0",  # Uppercase 'BEFORE'
+            "1.0 And Later",  # Mixed case
+            "1.0 OR ABOVE",  # Uppercase phrase
+        ]
+        for version in invalid_versions:
+            doc = self._make_product_version_doc(version)
+            result = verify_version_range_prohibition(doc)
+            assert result.failed, f"'{version}' should be rejected (case-insensitive)"
+
+    def test_no_product_version_branches_skips(self):
+        """Test that documents without product_version branches skip the check."""
+        doc = {
+            "product_tree": {
+                "branches": [
+                    {
+                        "category": "product_name",  # Not product_version
+                        "name": "1.0 to 2.0",  # Would be invalid if it were product_version
+                        "product": {"name": "Test", "product_id": "TEST"},
+                    }
+                ]
+            }
+        }
+        result = verify_version_range_prohibition(doc)
+        assert result.status == VerificationStatus.SKIP
+
+    def test_empty_branches_skips(self):
+        """Test that documents with empty branches skip the check."""
+        doc = {"product_tree": {"branches": []}}
+        result = verify_version_range_prohibition(doc)
+        assert result.status == VerificationStatus.SKIP
+
+    def test_no_product_tree_skips(self):
+        """Test that documents without product_tree skip the check."""
+        doc = {"document": {"title": "Test"}}
+        result = verify_version_range_prohibition(doc)
+        assert result.status == VerificationStatus.SKIP
+
+    def test_nested_product_version_branches(self):
+        """Test that nested product_version branches are checked."""
+        doc = {
+            "product_tree": {
+                "branches": [
+                    {
+                        "category": "vendor",
+                        "name": "Red Hat",
+                        "branches": [
+                            {
+                                "category": "product_version",
+                                "name": "1.0 to 2.0",  # Invalid nested branch
+                                "product": {"name": "Test", "product_id": "TEST"},
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        result = verify_version_range_prohibition(doc)
+        assert result.failed, "Nested product_version with range should be rejected"
+
+    def test_multiple_invalid_versions_reported(self):
+        """Test that multiple invalid versions are all reported."""
+        doc = {
+            "product_tree": {
+                "branches": [
+                    {
+                        "category": "product_version",
+                        "name": ">= 1.0",
+                        "product": {"name": "Test1", "product_id": "TEST1"},
+                    },
+                    {
+                        "category": "product_version",
+                        "name": "1.0 and later",
+                        "product": {"name": "Test2", "product_id": "TEST2"},
+                    },
+                ]
+            }
+        }
+        result = verify_version_range_prohibition(doc)
+        assert result.failed
+        assert len(result.details["invalid_versions"]) == 2
+
+    # === Helper method ===
+
+    def _make_product_version_doc(self, version_name: str) -> dict:
+        """Create a minimal document with a product_version branch."""
+        return {
+            "product_tree": {
+                "branches": [
+                    {
+                        "category": "product_version",
+                        "name": version_name,
+                        "product": {"name": "Test", "product_id": "TEST"},
+                    }
+                ]
+            }
+        }
 
 
 class TestMixedVersioningProhibition:

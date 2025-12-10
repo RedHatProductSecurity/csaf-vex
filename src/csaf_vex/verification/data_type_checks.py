@@ -62,24 +62,11 @@ INT_VERSION_PATTERN = re.compile(r"^\d+$")
 
 # Version range indicators to detect in product_version names
 # Operators use substring matching (unlikely to appear in package names)
-VERSION_RANGE_OPERATORS = frozenset({"<", "<=", ">", ">=", "!=", "=="})
+# Sorted by length (longest first) to ensure ">=" is checked before ">"
+VERSION_RANGE_OPERATORS = ("<=", ">=", "!=", "==", "<", ">")
 
-# Word-based indicators require word-boundary matching to avoid false positives
-# (e.g., "tools" should not match "to", "priority" should not match "prior")
-# Note: "to" is handled specially below due to high false positive rate
-VERSION_RANGE_WORDS = frozenset(
-    {
-        "after",
-        "before",
-        "prior",
-        "since",
-        "until",
-        "through",
-        "thru",
-    }
-)
-
-# Phrase indicators also use word-boundary matching
+# Phrase indicators - these multi-word phrases are unlikely to appear in package names
+# and can use simple word-boundary matching
 VERSION_RANGE_PHRASES = frozenset(
     {
         "and later",
@@ -91,21 +78,36 @@ VERSION_RANGE_PHRASES = frozenset(
     }
 )
 
-# Precompiled regex patterns for word-boundary matching (case-insensitive)
-_VERSION_RANGE_WORD_PATTERNS = {
-    word: re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
-    for word in VERSION_RANGE_WORDS | VERSION_RANGE_PHRASES
+# Precompiled regex patterns for phrase matching (case-insensitive)
+_VERSION_RANGE_PHRASE_PATTERNS = {
+    phrase: re.compile(rf"\b{re.escape(phrase)}\b", re.IGNORECASE)
+    for phrase in VERSION_RANGE_PHRASES
 }
 
-# Special patterns for "to" - requires context suggesting a version range
-# to avoid false positives like "glibc-langpack-to" (Tonga language code)
-# Matches patterns like: "1.0 to 2.0", "version 1 to 5", "prior to 2.0", "up to 3"
-_TO_RANGE_PATTERNS = [
-    # "X to Y" where X and Y contain digits (version-like): "1.0 to 2.0", "v1 to v2"
-    re.compile(r"\S*\d\S*\s+to\s+\S*\d", re.IGNORECASE),
-    # Common phrases: "prior to", "up to"
-    re.compile(r"\b(?:prior|up)\s+to\b", re.IGNORECASE),
-]
+# Single-word range indicators require version range context to avoid false positives
+# when they appear as part of package names (e.g., "nodejs-through", "aftermath")
+# These patterns match: "<word> <version>" or "<version> <word>" contexts
+_VERSION_RANGE_WORD_CONTEXT_PATTERNS = {
+    # "after X" where X looks like a version (contains digits)
+    "after": re.compile(r"\bafter\s+\S*\d", re.IGNORECASE),
+    # "before X" where X looks like a version
+    "before": re.compile(r"\bbefore\s+\S*\d", re.IGNORECASE),
+    # "prior to X" - common phrase
+    "prior": re.compile(r"\bprior\s+to\b", re.IGNORECASE),
+    # "since X" where X looks like a version
+    "since": re.compile(r"\bsince\s+\S*\d", re.IGNORECASE),
+    # "until X" where X looks like a version
+    "until": re.compile(r"\buntil\s+\S*\d", re.IGNORECASE),
+    # "X through Y" where both contain digits: "1.0 through 2.0"
+    "through": re.compile(r"\S*\d\S*\s+through\s+\S*\d", re.IGNORECASE),
+    # "X thru Y" where both contain digits
+    "thru": re.compile(r"\S*\d\S*\s+thru\s+\S*\d", re.IGNORECASE),
+    # "X to Y" where both contain digits, or "prior/up to X"
+    "to": [
+        re.compile(r"\S*\d\S*\s+to\s+\S*\d", re.IGNORECASE),
+        re.compile(r"\b(?:prior|up)\s+to\b", re.IGNORECASE),
+    ],
+}
 
 # Soft limits
 SOFT_LIMIT_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
@@ -591,20 +593,25 @@ def verify_version_range_prohibition(document: dict[str, Any]) -> VerificationRe
                 break
 
         if not found_indicator:
-            # Check word-based indicators with word-boundary matching
-            # to avoid false positives like "tools" matching "to"
-            for word, pattern in _VERSION_RANGE_WORD_PATTERNS.items():
+            # Check multi-word phrases (unlikely to appear in package names)
+            for phrase, pattern in _VERSION_RANGE_PHRASE_PATTERNS.items():
                 if pattern.search(name):
-                    invalid_versions.append({"name": name, "indicator": word})
+                    invalid_versions.append({"name": name, "indicator": phrase})
                     found_indicator = True
                     break
 
         if not found_indicator:
-            # Special check for "to" - requires version range context
-            # to avoid false positives like "glibc-langpack-to" (language code)
-            for pattern in _TO_RANGE_PATTERNS:
-                if pattern.search(name):
-                    invalid_versions.append({"name": name, "indicator": "to"})
+            # Check single-word indicators with version range context
+            # to avoid false positives like "nodejs-through", "aftermath", etc.
+            for word, patterns in _VERSION_RANGE_WORD_CONTEXT_PATTERNS.items():
+                # Handle both single pattern and list of patterns
+                pattern_list = patterns if isinstance(patterns, list) else [patterns]
+                for pattern in pattern_list:
+                    if pattern.search(name):
+                        invalid_versions.append({"name": name, "indicator": word})
+                        found_indicator = True
+                        break
+                if found_indicator:
                     break
 
     if invalid_versions:
