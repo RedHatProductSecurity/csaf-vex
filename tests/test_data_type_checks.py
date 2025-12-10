@@ -507,6 +507,10 @@ class TestVersionRangeProhibition:
             "sincerity-lib-1.0",  # Contains 'since' in 'sincerity'
             "aftermath-0.5.0",  # Contains 'after' in 'aftermath'
             "beforehand-utils-2.0",  # Contains 'before' in 'beforehand'
+            "glibc-langpack-to",  # 'to' is a language code (Tonga), not a range
+            "glibc-langpack-th",  # Similar language code suffix
+            "goto-statement-1.0",  # 'to' in 'goto'
+            "tomcat-9.0.50",  # 'to' in 'tomcat'
         ]
         for version in valid_package_names:
             doc = {
@@ -526,10 +530,14 @@ class TestVersionRangeProhibition:
     def test_word_boundary_detects_actual_ranges(self):
         """Test that actual range words (not as substrings) are still detected."""
         actual_range_versions = [
-            "1.0 to 2.0",  # 'to' as a word
-            "prior to 3.0",  # 'prior' and 'to' as words
+            "1.0 to 2.0",  # 'to' between versions
+            "v1 to v5",  # 'to' between version identifiers
+            "prior to 3.0",  # 'prior to' phrase
+            "up to 3.0",  # 'up to' phrase
             "since 1.5",  # 'since' as a word
             "until 2.0",  # 'until' as a word
+            "before 3.0",  # 'before' as a word
+            "after 1.0",  # 'after' as a word
         ]
         for version in actual_range_versions:
             doc = {

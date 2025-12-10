@@ -66,6 +66,7 @@ VERSION_RANGE_OPERATORS = frozenset({"<", "<=", ">", ">=", "!=", "=="})
 
 # Word-based indicators require word-boundary matching to avoid false positives
 # (e.g., "tools" should not match "to", "priority" should not match "prior")
+# Note: "to" is handled specially below due to high false positive rate
 VERSION_RANGE_WORDS = frozenset(
     {
         "after",
@@ -75,7 +76,6 @@ VERSION_RANGE_WORDS = frozenset(
         "until",
         "through",
         "thru",
-        "to",
     }
 )
 
@@ -96,6 +96,16 @@ _VERSION_RANGE_WORD_PATTERNS = {
     word: re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
     for word in VERSION_RANGE_WORDS | VERSION_RANGE_PHRASES
 }
+
+# Special patterns for "to" - requires context suggesting a version range
+# to avoid false positives like "glibc-langpack-to" (Tonga language code)
+# Matches patterns like: "1.0 to 2.0", "version 1 to 5", "prior to 2.0", "up to 3"
+_TO_RANGE_PATTERNS = [
+    # "X to Y" where X and Y contain digits (version-like): "1.0 to 2.0", "v1 to v2"
+    re.compile(r"\S*\d\S*\s+to\s+\S*\d", re.IGNORECASE),
+    # Common phrases: "prior to", "up to"
+    re.compile(r"\b(?:prior|up)\s+to\b", re.IGNORECASE),
+]
 
 # Soft limits
 SOFT_LIMIT_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
@@ -571,18 +581,30 @@ def verify_version_range_prohibition(document: dict[str, Any]) -> VerificationRe
     invalid_versions = []
     for branch in version_branches:
         name = branch.get("name", "")
+        found_indicator = False
 
         # Check operators (substring match is fine - unlikely false positives)
         for operator in VERSION_RANGE_OPERATORS:
             if operator in name:
                 invalid_versions.append({"name": name, "indicator": operator})
+                found_indicator = True
                 break
-        else:
+
+        if not found_indicator:
             # Check word-based indicators with word-boundary matching
             # to avoid false positives like "tools" matching "to"
             for word, pattern in _VERSION_RANGE_WORD_PATTERNS.items():
                 if pattern.search(name):
                     invalid_versions.append({"name": name, "indicator": word})
+                    found_indicator = True
+                    break
+
+        if not found_indicator:
+            # Special check for "to" - requires version range context
+            # to avoid false positives like "glibc-langpack-to" (language code)
+            for pattern in _TO_RANGE_PATTERNS:
+                if pattern.search(name):
+                    invalid_versions.append({"name": name, "indicator": "to"})
                     break
 
     if invalid_versions:
