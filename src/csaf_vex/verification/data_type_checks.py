@@ -61,22 +61,14 @@ SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:-[a-zA-Z0-9\.\-]+)?(?:\+[a-zA-Z0-
 INT_VERSION_PATTERN = re.compile(r"^\d+$")
 
 # Version range indicators to detect in product_version names
-VERSION_RANGE_INDICATORS = frozenset(
+# Operators use substring matching (unlikely to appear in package names)
+# Sorted by length (longest first) to ensure ">=" is checked before ">"
+VERSION_RANGE_OPERATORS = ("<=", ">=", "!=", "==", "<", ">")
+
+# Phrase indicators - these multi-word phrases are unlikely to appear in package names
+# and can use simple word-boundary matching
+VERSION_RANGE_PHRASES = frozenset(
     {
-        "<",
-        "<=",
-        ">",
-        ">=",
-        "!=",
-        "==",
-        "after",
-        "before",
-        "prior",
-        "since",
-        "until",
-        "through",
-        "thru",
-        "to",
         "and later",
         "and earlier",
         "or later",
@@ -85,6 +77,37 @@ VERSION_RANGE_INDICATORS = frozenset(
         "or below",
     }
 )
+
+# Precompiled regex patterns for phrase matching (case-insensitive)
+_VERSION_RANGE_PHRASE_PATTERNS = {
+    phrase: re.compile(rf"\b{re.escape(phrase)}\b", re.IGNORECASE)
+    for phrase in VERSION_RANGE_PHRASES
+}
+
+# Single-word range indicators require version range context to avoid false positives
+# when they appear as part of package names (e.g., "nodejs-through", "aftermath")
+# These patterns match: "<word> <version>" or "<version> <word>" contexts
+_VERSION_RANGE_WORD_CONTEXT_PATTERNS = {
+    # "after X" where X looks like a version (contains digits)
+    "after": re.compile(r"\bafter\s+\S*\d", re.IGNORECASE),
+    # "before X" where X looks like a version
+    "before": re.compile(r"\bbefore\s+\S*\d", re.IGNORECASE),
+    # "prior to X" - common phrase
+    "prior": re.compile(r"\bprior\s+to\b", re.IGNORECASE),
+    # "since X" where X looks like a version
+    "since": re.compile(r"\bsince\s+\S*\d", re.IGNORECASE),
+    # "until X" where X looks like a version
+    "until": re.compile(r"\buntil\s+\S*\d", re.IGNORECASE),
+    # "X through Y" where both contain digits: "1.0 through 2.0"
+    "through": re.compile(r"\S*\d\S*\s+through\s+\S*\d", re.IGNORECASE),
+    # "X thru Y" where both contain digits
+    "thru": re.compile(r"\S*\d\S*\s+thru\s+\S*\d", re.IGNORECASE),
+    # "X to Y" where both contain digits, or "prior/up to X"
+    "to": [
+        re.compile(r"\S*\d\S*\s+to\s+\S*\d", re.IGNORECASE),
+        re.compile(r"\b(?:prior|up)\s+to\b", re.IGNORECASE),
+    ],
+}
 
 # Soft limits
 SOFT_LIMIT_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
@@ -560,11 +583,36 @@ def verify_version_range_prohibition(document: dict[str, Any]) -> VerificationRe
     invalid_versions = []
     for branch in version_branches:
         name = branch.get("name", "")
-        name_lower = name.lower()
-        for indicator in VERSION_RANGE_INDICATORS:
-            if indicator in name_lower:
-                invalid_versions.append({"name": name, "indicator": indicator})
+        found_indicator = False
+
+        # Check operators (substring match is fine - unlikely false positives)
+        for operator in VERSION_RANGE_OPERATORS:
+            if operator in name:
+                invalid_versions.append({"name": name, "indicator": operator})
+                found_indicator = True
                 break
+
+        if not found_indicator:
+            # Check multi-word phrases (unlikely to appear in package names)
+            for phrase, pattern in _VERSION_RANGE_PHRASE_PATTERNS.items():
+                if pattern.search(name):
+                    invalid_versions.append({"name": name, "indicator": phrase})
+                    found_indicator = True
+                    break
+
+        if not found_indicator:
+            # Check single-word indicators with version range context
+            # to avoid false positives like "nodejs-through", "aftermath", etc.
+            for word, patterns in _VERSION_RANGE_WORD_CONTEXT_PATTERNS.items():
+                # Handle both single pattern and list of patterns
+                pattern_list = patterns if isinstance(patterns, list) else [patterns]
+                for pattern in pattern_list:
+                    if pattern.search(name):
+                        invalid_versions.append({"name": name, "indicator": word})
+                        found_indicator = True
+                        break
+                if found_indicator:
+                    break
 
     if invalid_versions:
         return VerificationResult(
