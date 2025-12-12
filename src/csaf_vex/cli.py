@@ -86,6 +86,28 @@ def _display_verification_summary(report: VerificationReport) -> None:
         click.secho("Verification FAILED", fg="red", bold=True)
 
 
+def _display_validation_results(report, *, verbose: bool = False, indent: str = "") -> None:
+    """Display validation plugin results in a consistent format."""
+    for r in report.results:
+        if r.success:
+            if verbose:
+                click.secho(f"{indent}✓ {r.validator_name}", fg="green")
+        else:
+            click.secho(f"{indent}✗ {r.validator_name}", fg="red")
+            for e in r.errors:
+                click.echo(f"{indent}  - {e.message}")
+
+
+def _display_validation_summary(report) -> None:
+    """Display validation summary."""
+    click.echo("")
+    click.echo(f"Summary: {report.passed_count} passed, {report.failed_count} failed")
+    if report.passed:
+        click.secho("Validation PASSED", fg="green", bold=True)
+    else:
+        click.secho("Validation FAILED", fg="red", bold=True)
+
+
 @click.group()
 def main():
     """CSAF VEX file manipulation tool."""
@@ -180,9 +202,6 @@ def verify(ctx: click.Context, file: Path, test_set: str, test_id: tuple[str, ..
         _display_verification_results(report, verbose=verbose)
         _display_verification_summary(report)
 
-        if not report.passed:
-            ctx.exit(1)
-
     except json.JSONDecodeError as e:
         raise click.ClickException(f"Invalid JSON in {file}: {e}") from None
     except Exception as e:
@@ -194,10 +213,20 @@ def verify(ctx: click.Context, file: Path, test_set: str, test_id: tuple[str, ..
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output results as JSON")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed verification results")
 @click.pass_context
-def validate(ctx: click.Context, file: Path, as_json: bool, verbose: bool):
+@click.option(
+    "--verify/--skip-verify",
+    default=True,
+    help="Run CSAF verification for CSAF schema issues and data types checks",
+)
+def validate(ctx: click.Context, file: Path, as_json: bool, verbose: bool, verify: bool):
     """Validate a CSAF VEX JSON file using installed validator plugins."""
     try:
         log_level = logging.DEBUG if verbose else logging.INFO
+
+        verification_report = None
+        if verify:
+            verifier = Verifier.from_file(file, log_level=log_level)
+            verification_report = verifier.run_all()
 
         validator = Validator.from_file(file, log_level=log_level)
         report = validator.run_all()
@@ -210,6 +239,7 @@ def validate(ctx: click.Context, file: Path, as_json: bool, verbose: bool):
                     "passed": report.passed_count,
                     "failed": report.failed_count,
                 },
+                "verification": verification_report.to_dict() if verification_report else None,
                 "results": [
                     {
                         "validator_name": r.validator_name,
@@ -222,21 +252,18 @@ def validate(ctx: click.Context, file: Path, as_json: bool, verbose: bool):
             }
             click.echo(json.dumps(output, indent=2))
         else:
+            if verification_report:
+                click.echo("Verification results:")
+                _display_verification_results(verification_report, verbose=verbose)
+                _display_verification_summary(verification_report)
+                click.echo("")
+
             if not report.results:
                 click.echo("No validation plugins found.")
             else:
-                failures = 0
-                for r in report.results:
-                    status = "PASS" if r.success else "FAIL"
-                    click.echo(f"[{status}] {r.validator_name}")
-                    if not r.success:
-                        failures += 1
-                        for e in r.errors:
-                            click.echo(f"  - {e.message} (plugin: {r.validator_name})")
-
-        # Exit code: 1 if any validator failed
-        if report.failed_count > 0:
-            raise SystemExit(1)
+                click.echo("Validation results:")
+                _display_validation_results(report, verbose=verbose)
+                _display_validation_summary(report)
 
     except json.JSONDecodeError as e:
         raise click.ClickException(f"Invalid JSON in {file}: {e}") from None
