@@ -342,13 +342,13 @@ class CSAFVEXBuilder:
                 f"{p.get('stream')}:{p.get('component')}" for p in product_tree_data["products"]
             ]
 
-        if data.get("discovery_date"):
+        if "discovery_date" in data:
             vuln_dict["discovery_date"] = data["discovery_date"]
 
-        if data.get("cwe_id"):
+        if "cwe_id" in data:
             vuln_dict["cwe"] = data["cwe_id"]
 
-        if data.get("product_status"):
+        if "product_status" in data:
             vuln_dict["product_status"] = data["product_status"]
 
         if "score" in data and data["score"].get("vector"):
@@ -356,16 +356,16 @@ class CSAFVEXBuilder:
                 {"products": product_ids, "cvss_v3": {"vectorString": data["score"]["vector"]}}
             ]
 
-        if data.get("references"):
+        if "references" in data:
             vuln_dict["references"] = data["references"]
 
-        if data.get("flags"):
+        if "flags" in data:
             vuln_dict["flags"] = data["flags"]
 
         if "notes" in data:
             vuln_dict["notes"] = data["notes"]
 
-        if data.get("remediation"):
+        if "remediation" in data:
             vuln_dict["remediations"] = [
                 {
                     "category": "workaround",

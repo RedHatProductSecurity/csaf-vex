@@ -46,7 +46,9 @@ class CSAFVEX(SerializableModel):
 
         return cls(
             document=Document.from_dict(data.get("document", {})),
-            product_tree=ProductTree.from_dict(product_tree_data) if product_tree_data else None,
+            product_tree=ProductTree.from_dict(product_tree_data)
+            if product_tree_data is not None
+            else None,
             vulnerabilities=[Vulnerability.from_dict(v) for v in vulnerabilities_data],
             raw_data=data,
         )

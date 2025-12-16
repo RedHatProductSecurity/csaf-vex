@@ -119,3 +119,73 @@ class TestEmptyListFiltering:
         result = csafvex.to_dict()
 
         assert "vulnerabilities" not in result
+
+
+class TestEmptyDictHandling:
+    """Test that empty dicts are not treated as None/falsy."""
+
+    def test_empty_product_tree_dict_creates_object(self):
+        """Empty product_tree dict should create object, not be skipped as None."""
+        data = {
+            "document": {
+                "category": "csaf_vex",
+                "csaf_version": "2.0",
+                "title": "Test",
+                "publisher": {
+                    "category": "vendor",
+                    "name": "Test",
+                    "namespace": "https://test.com",
+                },
+                "tracking": {
+                    "id": "TEST-001",
+                    "status": "final",
+                    "version": "1",
+                    "initial_release_date": "2025-01-01T00:00:00Z",
+                    "current_release_date": "2025-01-01T00:00:00Z",
+                },
+            },
+            "product_tree": {},  # Empty dict should be processed, not treated as falsy
+        }
+        csafvex = CSAFVEX.from_dict(data)
+        assert csafvex.product_tree is not None
+
+    def test_missing_product_tree_is_none(self):
+        """Missing product_tree key should result in None."""
+        data = {
+            "document": {
+                "category": "csaf_vex",
+                "csaf_version": "2.0",
+                "title": "Test",
+                "publisher": {
+                    "category": "vendor",
+                    "name": "Test",
+                    "namespace": "https://test.com",
+                },
+                "tracking": {
+                    "id": "TEST-001",
+                    "status": "final",
+                    "version": "1",
+                    "initial_release_date": "2025-01-01T00:00:00Z",
+                    "current_release_date": "2025-01-01T00:00:00Z",
+                },
+            },
+            # product_tree key is missing
+        }
+        csafvex = CSAFVEX.from_dict(data)
+        assert csafvex.product_tree is None
+
+    def test_empty_product_status_dict_creates_object(self):
+        """Empty product_status dict should create object, not be skipped."""
+        from csaf_vex.models.vulnerability import Vulnerability
+
+        data = {"cve": "CVE-2025-0001", "product_status": {}}
+        vuln = Vulnerability.from_dict(data)
+        assert vuln.product_status is not None
+
+    def test_missing_product_status_is_none(self):
+        """Missing product_status key should result in None."""
+        from csaf_vex.models.vulnerability import Vulnerability
+
+        data = {"cve": "CVE-2025-0001"}
+        vuln = Vulnerability.from_dict(data)
+        assert vuln.product_status is None
