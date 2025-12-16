@@ -122,7 +122,7 @@ class FullProductName(SerializableModel):
             name=data.get("name"),
             product_id=data.get("product_id"),
             product_identification_helper=ProductIdentificationHelper.from_dict(helper_data)
-            if helper_data
+            if helper_data is not None
             else None,
         )
 
@@ -149,7 +149,7 @@ class Branch(SerializableModel):
             category=data.get("category"),
             name=data.get("name"),
             branches=[Branch.from_dict(b) for b in branches_data],
-            product=FullProductName.from_dict(product_data) if product_data else None,
+            product=FullProductName.from_dict(product_data) if product_data is not None else None,
         )
 
 
@@ -171,7 +171,7 @@ class Relationship(SerializableModel):
         return cls(
             category=data.get("category"),
             full_product_name=FullProductName.from_dict(full_product_name_data)
-            if full_product_name_data
+            if full_product_name_data is not None
             else None,
             product_reference=data.get("product_reference"),
             relates_to_product_reference=data.get("relates_to_product_reference"),

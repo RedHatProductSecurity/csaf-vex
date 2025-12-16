@@ -59,7 +59,7 @@ class Distribution(SerializableModel):
         tlp_data = data.get("tlp")
         return cls(
             text=data.get("text"),
-            tlp=TLP.from_dict(tlp_data) if tlp_data else None,
+            tlp=TLP.from_dict(tlp_data) if tlp_data is not None else None,
         )
 
 
@@ -123,8 +123,8 @@ class Generator(SerializableModel):
         engine_data = data.get("engine", {})
         date_str = data.get("date")
         return cls(
-            engine=Engine.from_dict(engine_data) if engine_data else None,
-            date=datetime.fromisoformat(date_str) if date_str else None,
+            engine=Engine.from_dict(engine_data) if engine_data is not None else None,
+            date=datetime.fromisoformat(date_str) if date_str is not None else None,
         )
 
 
@@ -145,7 +145,7 @@ class Revision(SerializableModel):
         """Create a Revision from a dictionary."""
         date_str = data.get("date")
         return cls(
-            date=datetime.fromisoformat(date_str) if date_str else None,
+            date=datetime.fromisoformat(date_str) if date_str is not None else None,
             number=data.get("number"),
             summary=data.get("summary"),
             legacy_version=data.get("legacy_version"),
@@ -182,13 +182,13 @@ class Tracking(SerializableModel):
             status=data.get("status"),
             version=data.get("version"),
             current_release_date=datetime.fromisoformat(current_release_date_str)
-            if current_release_date_str
+            if current_release_date_str is not None
             else None,
             initial_release_date=datetime.fromisoformat(initial_release_date_str)
-            if initial_release_date_str
+            if initial_release_date_str is not None
             else None,
             revision_history=[Revision.from_dict(r) for r in revision_history_data],
-            generator=Generator.from_dict(generator_data) if generator_data else None,
+            generator=Generator.from_dict(generator_data) if generator_data is not None else None,
             # aliases=data.get("aliases", []),
         )
 
@@ -231,13 +231,15 @@ class Document(SerializableModel):
         return cls(
             category=data.get("category"),
             csaf_version=data.get("csaf_version"),
-            publisher=Publisher.from_dict(publisher_data) if publisher_data else None,
+            publisher=Publisher.from_dict(publisher_data) if publisher_data is not None else None,
             title=data.get("title"),
-            tracking=Tracking.from_dict(tracking_data) if tracking_data else None,
+            tracking=Tracking.from_dict(tracking_data) if tracking_data is not None else None,
             aggregate_severity=AggregateSeverity.from_dict(aggregate_severity_data)
-            if aggregate_severity_data
+            if aggregate_severity_data is not None
             else None,
-            distribution=Distribution.from_dict(distribution_data) if distribution_data else None,
+            distribution=Distribution.from_dict(distribution_data)
+            if distribution_data is not None
+            else None,
             lang=data.get("lang"),
             notes=[Note.from_dict(note) for note in notes_data],
             references=[Reference.from_dict(ref) for ref in references_data],
