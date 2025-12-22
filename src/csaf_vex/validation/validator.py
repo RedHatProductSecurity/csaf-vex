@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from csaf_vex.models import CSAFVEX
 from csaf_vex.validation.manager import PluginManager
@@ -40,9 +41,17 @@ class Validator:
         return cls(csafvex, log_level=log_level)
 
     @classmethod
-    def from_json(cls, json_string: str, *, log_level: int = logging.WARNING) -> Validator:
-        """Create a Validator from a JSON string."""
-        csafvex = CSAFVEX.from_dict(json.loads(json_string))
+    def from_json(
+        cls,
+        json_input: str | dict[str, Any],
+        *,
+        log_level: int = logging.WARNING,
+    ) -> Validator:
+        """Create a Validator from a JSON string or a parsed dictionary."""
+        if isinstance(json_input, str):
+            csafvex = CSAFVEX.from_dict(json.loads(json_input))
+        else:
+            csafvex = CSAFVEX.from_dict(json_input)
         return cls(csafvex, log_level=log_level)
 
     def run_all(self) -> ValidationReport:
